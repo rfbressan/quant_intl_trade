@@ -9,6 +9,10 @@
 #' 2014.
 #' You will also need the WIOD Socio Economic Accounts database. 
 #' 
+#' Clean up the session
+rm(list = ls())
+gc()
+
 library(data.table)
 library(fst)
 library(fixest)
@@ -251,6 +255,16 @@ summary(trade_flows)
 #' \end{equation}
 #' 
 trade_flows[, d_ijk := ((delta_ijk)^(-1/theta))*z_ratio_ijk/w_ratio_ij]
+#' Insert predicted trade flows and shares into trade_flows
+trade_flows[, by = c("in_country", "out_ind"),
+            sum_jk := sum((wage_i*d_ijk / z_ik)^(-theta))]
+trade_flows[, `:=`(
+  pred_value = (((wage_i*d_ijk / z_ik)^(-theta))/sum_jk)*alpha_jk*wage_j*employed_j,
+  pred_pi = ((wage_i*d_ijk / z_ik)^(-theta))/sum_jk
+)]
+#' Check $\hat\pi_{ij}^k$ sum to one over in_country and out_ind
+trade_flows[, by = c("in_country", "out_ind"), sum(pred_pi)]
+trade_flows[, summary(pred_pi)]
 #' Check if trade costs were computed correctly. 
 #' Look at a sample of trade costs. Not all costs are greater than or equal to 
 #' one! This may be due to export incentives some countries may provide.
@@ -258,37 +272,23 @@ set.seed(123)
 trade_flows[sample(.N, 20), .(out_country, in_country, out_ind, d_ijk)]
 #' Check if trade costs were correctly computed. Equations (6) and (4) must
 #' hold. Begin with trade values, equation (6)
-rhs_tv <- copy(trade_flows[, .(out_country, in_country, out_ind, wage_i, wage_j,
-                               d_ijk, z_ik, alpha_jk, employed_j)])
-rhs_tv[, by = c("in_country", "out_ind"),
-       sum_i := sum((wage_i*d_ijk / z_ik)^(-theta))]
-rhs_tv[, pred_value := (((wage_i*d_ijk / z_ik)^(-theta))/sum_i)*alpha_jk*wage_j*employed_j]
-rhs_tv <- merge(rhs_tv, trade_flows[, c(..key_vars, "value")], by = key_vars)
-rhs_tv[sample(.N, 20), .(out_country, in_country, out_ind, pred_value, value)]
-#' Values are clearly not the same!!
-#' $d_{ij}^k$ is chosen so that equation (6) must hold for all values!
-rhs_tv[, .(cor(pred_value, value))]
+trade_flows[sample(.N, 20), .(out_country, in_country, out_ind, pred_value, value)]
+#' Values are clearly not the same!! 
+#' 
+#' Check trade shares
+trade_flows[sample(.N, 20), .(out_country, in_country, out_ind, pred_pi, pi_ijk)]
+#'
+#' $d_{ij}^k$ is chosen so that equation (6) should hold for all values! Check 
+#' correlations
+trade_flows[, .(cor(pred_value, value))]
+trade_flows[, .(cor(pred_pi, pi_ijk))]
 #' What about the mean trade value by exporter?
-rhs_tv[, by = "out_country", .(predict = mean(pred_value),
-                               data = mean(value))]
-#' Values are consistently lower than real data, therefore, our trade costs 
-#' estimation is overstated!!Costs are much lower.
-#' Let's arbitrarily reduce trade costs when $i\neq j$
-trade_flows1 <- copy(trade_flows)
-trade_flows1[out_country != in_country, d_ijk := 0.0001*d_ijk]
-rhs_tv <- copy(trade_flows1[, .(out_country, in_country, out_ind, wage_i, wage_j,
-                               d_ijk, z_ik, alpha_jk, employed_j)])
-rhs_tv[, by = c("in_country", "out_ind"),
-       sum_i := sum((wage_i*d_ijk / z_ik)^(-theta))]
-rhs_tv[, pred_value := (((wage_i*d_ijk / z_ik)^(-theta))/sum_i)*alpha_jk*wage_j*employed_j]
-rhs_tv <- merge(rhs_tv, trade_flows[, c(..key_vars, "value")], by = key_vars)
-rhs_tv[, by = "out_country", .(predict = mean(pred_value),
-                               data = mean(value))]
-rhs_tv[, .(cor(pred_value, value))]
-#' Average values are not very sensitive, although correlation to true values
-#' is destroyed!
-
-rm(rhs_tv)
+trade_flows[, by = "out_country", .(pred_value = mean(pred_value),
+                                    value = mean(value),
+                                    pred_pi = mean(pred_pi),
+                                    pi_ijk = mean(pi_ijk))]
+#' Values are consistently lower than real data
+#'
 #' If we manipulate a bit equation (4), trade balance condition can be written
 #' as:
 #' 
@@ -313,7 +313,6 @@ rm(lhs_tb)
 #'  
 #' # Compute price index and welfate
 #' 
-#' 
 welfare <- find_price(trade_flows)
 welfare <- welfare[gamma_i][, welfare_i := wage_i/p_i]
 #' So now we have the trade_flow data.table with exogenous parameters:
@@ -325,15 +324,20 @@ calib <- trade_flows[, theta := theta][
   , .(out_country, in_country, out_ind, 
       theta, z_ik, z_jk, d_ijk, alpha_jk, employed_j, employed_i)]
 #' write exogenous variables to calibration file
-write_fst(calib, "output/calibration.fst")
+write_fst(calib, "output/base_exog.fst")
 #' write endogenous variables as baseline
-write_fst(trade_flows[, c(..key_vars, "value", "pi_ijk", "wage_i", "employed_i")],
-          "output/baseline.fst")
-#' write welfare from calibration, if needed as first guess
-write_fst(welfare, "output/welfare.fst")
-#' # Checking the fit
+write_fst(trade_flows[, c(..key_vars, "value", "pi_ijk", "wage_i", "employed_i",
+                          "pred_value", "pred_pi")],
+          "output/base_trade.fst")
+#' # Other variables by country to make the baseline scenario
 #' 
-#' Highest wages
-trade_flows[, by = out_country, .(wage = first(wage_i))][order(-wage)]
-#' Highest bilateral trade flows per capita
-trade_flows[, by = out_country, .(trade = sum(value / employed_i))][order(-trade)]
+#' Trade, trade per capita
+base_bycountry <- trade_flows[, by = out_country, 
+                              .(trade = sum(value),
+                                trade_pc = sum(value / employed_i),
+                                pred_trade = sum(pred_value),
+                                pred_trade_pc = sum(pred_value / employed_i)
+                                )
+                              ][welfare, on = "out_country"]
+write_fst(base_bycountry, "output/base_bycountry.fst")
+write_fst(base_bycountry, "trade_project1/base_bycountry.fst")

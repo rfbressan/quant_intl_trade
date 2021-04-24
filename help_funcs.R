@@ -56,8 +56,37 @@ find_wages <- function(cal_dt, wages0, maxit = 10) {
   return(wages_dt)
 }
 
+#' Compute price parameter and price index from exogenous and wages
+find_welfare <- function(wages_dt, exog) {
+  stopifnot(is.data.table(wages_dt))
+  stopifnot(is.data.table(exog))
+  wages <- rbind(wages_dt, list("USA", 1))
+  dt <- merge(exog, wages, by = "out_country", all.x = TRUE)
+  # Get wage_j too
+  dt <- merge(dt, wages, by.x = "in_country", by.y = "out_country", all.x = TRUE)
+  setnames(dt, c("wage_i.x", "wage_i.y"), c("wage_i", "wage_j"))
+  dt <- dt[, by = c("in_country", "out_ind"),
+           .(wage_j = first(wage_j),
+             alpha_jk = first(alpha_jk),
+             theta = first(theta),
+             Phi_jk = sum((wage_i*d_ijk/z_ik)^(-theta)))]
+  dt <- dt[, by = "in_country",
+           .(wage_i = first(wage_j),
+             p_i = prod(Phi_jk^(-alpha_jk/theta)))]
+  dt[, welfare_i := wage_i / p_i]
+  setnames(dt, "in_country", "out_country")
+  # Get employed_i and compute gamma_i
+  emp <- exog[, by = "out_country", 
+               .(employed_i = first(employed_i))]
+  dt <- merge(dt, emp, by = "out_country")
+  dt[, wld_gdp := sum(wage_i*employed_i)]
+  dt[, gamma_i := (wage_i*employed_i) / wld_gdp]
+  setkey(dt, out_country)
+  return(dt)
+}
+
 #' Once we have wages we can calculate bilateral trade flows
-find_trade <- function(wages_dt, exog) {
+find_shares_values <- function(wages_dt, exog) {
   stopifnot(is.data.table(wages_dt))
   stopifnot(is.data.table(exog))
   wages <- rbind(wages_dt, list("USA", 1))
@@ -66,35 +95,9 @@ find_trade <- function(wages_dt, exog) {
   setnames(dt, c("wage_i.x", "wage_i.y"), c("wage_i", "wage_j"))
   # Compute equation (6) of Costinot et. al. 2012
   dt[, by = c("in_country", "out_ind"),
-     sum_i := sum((wage_i*d_ijk / z_ik)^(-theta))]
-  dt[, x_ijk := ((wage_i*d_ijk / z_ik)^(-theta))/sum_i*alpha_jk*wage_j*employed_j]
-  dt[, sum_i := NULL]
+     Phi_jk := sum((wage_i*d_ijk / z_ik)^(-theta))]
+  dt[, pi_ijk := ((wage_i*d_ijk / z_ik)^(-theta)) / Phi_jk]
+  dt[, x_ijk := pi_ijk*alpha_jk*wage_j*employed_j]
   setkey(dt, out_country, in_country, out_ind)
-  return(dt)
-}
-
-#' And then we are able to calculate export shares
-find_share <- function(trade_dt) {
-  stopifnot(is.data.table(trade_dt))
-  dt <- copy(trade_dt)
-  dt[, by = c("in_country", "out_ind"), sum_i := sum(x_ijk)]
-  dt[, pi_ijk := x_ijk / sum_i]
-  dt[, sum_i := NULL]
-  setkey(dt, out_country, in_country, out_ind)
-  return(dt)
-}
-
-#' calculate price index
-find_price <- function(share_dt) {
-  stopifnot(is.data.table(share_dt))
-  dt <- copy(share_dt)
-  dt <- dt[, by = c("in_country", "out_ind"),
-           .(alpha_jk = first(alpha_jk),
-             theta = first(theta),
-             Phi_jk = sum((wage_i*d_ijk/z_ik)^(-theta)))]
-  dt <- dt[, by = "in_country",
-           .(p_i = prod(Phi_jk^(-alpha_jk/theta)))]
-  setnames(dt, "in_country", "out_country")
-  setkey(dt, out_country)
   return(dt)
 }
