@@ -141,8 +141,8 @@ pi_ijk <- trade_flows[, by = c("in_country", "out_ind"),
                         pi_ijk = value / sum(value))]
 #' Compute $\pi_{jj}^k$ since its useful to estimate trade costs
 pi_jjk <- pi_ijk[out_country == in_country]
-pi_ijk <- merge(pi_ijk, pi_jjk[, -c("in_country")], 
-                 by = c("out_country", "out_ind"), 
+pi_ijk <- merge(pi_ijk, pi_jjk[, -c("out_country")], 
+                 by = c("in_country", "out_ind"), 
                  all.x = TRUE)
 setnames(pi_ijk, c("pi_ijk.x", "pi_ijk.y"), c("pi_ijk", "pi_jjk"))
 setkeyv(pi_ijk, key_vars)
@@ -257,10 +257,10 @@ summary(trade_flows)
 trade_flows[, d_ijk := ((delta_ijk)^(-1/theta))*z_ratio_ijk/w_ratio_ij]
 #' Insert predicted trade flows and shares into trade_flows
 trade_flows[, by = c("in_country", "out_ind"),
-            sum_jk := sum((wage_i*d_ijk / z_ik)^(-theta))]
+            Phi_jk := sum((wage_i*d_ijk / z_ik)^(-theta))]
 trade_flows[, `:=`(
-  pred_value = (((wage_i*d_ijk / z_ik)^(-theta))/sum_jk)*alpha_jk*wage_j*employed_j,
-  pred_pi = ((wage_i*d_ijk / z_ik)^(-theta))/sum_jk
+  pred_value = (((wage_i*d_ijk / z_ik)^(-theta))/Phi_jk)*alpha_jk*wage_j*employed_j,
+  pred_pi = ((wage_i*d_ijk / z_ik)^(-theta))/Phi_jk
 )]
 #' Check $\hat\pi_{ij}^k$ sum to one over in_country and out_ind
 trade_flows[, by = c("in_country", "out_ind"), sum(pred_pi)]
@@ -273,11 +273,13 @@ trade_flows[sample(.N, 20), .(out_country, in_country, out_ind, d_ijk)]
 #' Check if trade costs were correctly computed. Equations (6) and (4) must
 #' hold. Begin with trade values, equation (6)
 trade_flows[sample(.N, 20), .(out_country, in_country, out_ind, pred_value, value)]
-#' Values are clearly not the same!! 
+#' Values are clearly not the same!! But this is not a concern since we have
+#' normalized the values. What is more interesting to check is trade shares.
 #' 
 #' Check trade shares
 trade_flows[sample(.N, 20), .(out_country, in_country, out_ind, pred_pi, pi_ijk)]
-#'
+#' But $\hat\pi_{ij}^k$ match exactly the ones computed from data! Very good.
+#' 
 #' $d_{ij}^k$ is chosen so that equation (6) should hold for all values! Check 
 #' correlations
 trade_flows[, .(cor(pred_value, value))]
@@ -308,13 +310,19 @@ lhs_tb <- lhs_tb[, by = c("out_country"), .(lhs = sum(inner))
 lhs_tb[, .(cor(lhs, rhs))]
 lhs_tb[, .(predict = sum(lhs), data = sum(rhs))]
 SSE_cal <- lhs_tb[, sum((lhs - rhs)^2)]
-rm(lhs_tb)
+
 #' Balanced trade condition looks good.
 #'  
 #' # Compute price index and welfate
 #' 
-welfare <- find_price(trade_flows)
-welfare <- welfare[gamma_i][, welfare_i := wage_i/p_i]
+welfare <- trade_flows[, by = c("in_country", "out_ind"),
+                       .(Phi_jk = first(Phi_jk),
+                         alpha_jk = first(alpha_jk))]
+welfare <- welfare[, by = in_country, 
+                   .(p_i = prod(Phi_jk^(-alpha_jk/theta)))]
+setnames(welfare, "in_country", "out_country")
+welfare <- merge(welfare, gamma_i, by = "out_country")
+welfare[, welfare_i := wage_i/p_i]
 #' So now we have the trade_flow data.table with exogenous parameters:
 #' - theta, z_ik, d_ijk, alpha_jk and Lj
 #' theta is in its own variable and our calibration is done.
@@ -326,9 +334,12 @@ calib <- trade_flows[, theta := theta][
 #' write exogenous variables to calibration file
 write_fst(calib, "output/base_exog.fst")
 #' write endogenous variables as baseline
-write_fst(trade_flows[, c(..key_vars, "value", "pi_ijk", "wage_i", "employed_i",
-                          "pred_value", "pred_pi")],
+trade_cols <- c("z_ik", "z_jk", "d_ijk", "alpha_jk", "employed_j", "employed_i",
+                "wage_i", "wage_j", "pi_ijk", "pred_value")
+write_fst(trade_flows[, c(..key_vars, ..trade_cols)],
           "output/base_trade.fst")
+write_fst(trade_flows[, c(..key_vars, ..trade_cols)],
+          "trade_project1/base_trade.fst")
 #' # Other variables by country to make the baseline scenario
 #' 
 #' Trade, trade per capita
@@ -341,3 +352,6 @@ base_bycountry <- trade_flows[, by = out_country,
                               ][welfare, on = "out_country"]
 write_fst(base_bycountry, "output/base_bycountry.fst")
 write_fst(base_bycountry, "trade_project1/base_bycountry.fst")
+
+#' Save image to use in report
+save.image("output/calibration.rds")

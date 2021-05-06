@@ -51,6 +51,7 @@ find_wages <- function(cal_dt, wages0, maxit = 10) {
                             # lower = 0,
                             method = "BFGS",
                             control = list(maxit = maxit))
+  message(sprintf("Convergence code in find_wages: %d", opt_res$convergence))
   wages_dt <- data.table(out_country = names(opt_res$par),
                          wage_i = opt_res$par)
   return(wages_dt)

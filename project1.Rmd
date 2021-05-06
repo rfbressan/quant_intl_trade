@@ -1,0 +1,219 @@
+---
+title: "Trade Project 1"
+author: "Rafael Felipe Bressan"
+date: "25/04/2021 (last update: `r Sys.Date()`)"
+output: 
+  bookdown::pdf_document2
+bibliography: references.bib
+urlcolor: blue
+citecolor: blue
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  fig.align = "center", 
+  fig.retina = 3,
+  fig.width = 7,
+  out.width = "80%",
+  fig.asp = 9/16
+)
+
+library(data.table)
+library(kableExtra)
+library(magrittr)
+```
+
+# Introduction
+
+I will use the World Input Output Database (WIOD) - see Stehrer, de Vries, Los, Dietzenbacher, and Timmer (2014) for more details. I used the year 2014 as the baseline from the 2016 release <http://www.wiod.org/release16> - following the link "Input-Output Tables" and using the file "WIOT tables in R format". I cleaning up and rearranged the data using the script `01_cleaning.R` in the appendix. I also used the WIOD Socio Economic Accounts database.
+
+The first objective is to implement a multi-sector version of the Eaton and Kortum (2002) model, following Costinot, Donaldson, and Komunjer (2012). As in Costinot et al., I assume that labor is the only factor of production and is mobile across sectors.
+
+The second objective is to find the welfare losses from the current Covid-19 crisis, for Brazil and the rest of the world.
+
+In order to better visualize the results and interact with different scenarios, I created a web application available at: [Trade Project 1](https://rfbressan.shinyapps.io/trade_project1/).
+
+# Dataset Setup
+
+I downloaded all the files contained in [WIOT tables in R format](http://www.wiod.org/protected3/data16/wiot_ROW/wiot_r_Nov16.zip), unzip in a local folder and choose to work with the last year, 2014. I also downloaded the file [Socio Economic Accounts Release 2016](http://www.wiod.org/protected3/data16/SEA/WIOD_SEA_Nov16.xlsx) in order to get the number of workers in each industry sector and country for the year 2014.
+
+I excluded summary rows (i.e. TOT) and information on industries coded above 55. Industry U, number 56 is excluded since most countries do not expend anything on this. Also, some trade flows are zero in a given pair of countries and industry. This raises problems in computing the shares $\pi_{ij}^k$ and $\alpha_j^k$ and to deal with this I opt to set a minimum value of 1.0 for any trade flow entry.
+
+Then, I am able to compute the log of trade values and finally merge information on labor force for each country.
+
+# Calibration
+
+```{r load-calib}
+load("output/calibration.rds")
+```
+
+Having the dataset prepared, I start with the calibration process. From Table 3 in @costinot2012goods I selected column (3), $\theta = 6.534$, where the method of estimation was an IV, to be used throughout this project.
+
+I begin the calibration by estimating revealed productivities. I have to estimate equation \@ref(eq:productivity) 
+
+\begin{equation}
+\ln x_{ij}^k=\delta_{ij}+\delta{j}^k+\delta_{i}^k+\varepsilon_{ij}^k
+(\#eq:productivity)
+\end{equation}
+
+and then invert the fixed effect of exporter-industry to get the productivity $z_i^k$. I extract the revealed productivity of country $i$ in industry $k$ as $z_{i}^k=\exp(\delta_i^k / \theta)$, notice I have normalized all USA productivities and industry _A01	Crop and animal production, hunting and related service activities_ in all other countries to 1, similar to what the original authors have done in Table 2.
+
+## Estimating $\alpha_j^k$
+
+The share of expenditures in industry $k$ for importer country $j$. This must be computed from the destination values, that is, industry $k$ is found in the columns of WIOD's input-output matrix.  It's the industry where the importer country is spending inputs from all countries and all other industries. We compute $\alpha_j^k$ as the proportion of country $j$ expenditures in this industry to total expenditures.
+
+We end up with `r nrow(alpha_jk)` observations of $\alpha_j^k$, result from `r uniqueN(alpha_jk$in_country)` countries and `r uniqueN(alpha_jk$out_ind)` industries. The calculated shares can be consulted in the companion application at [Trade Project 1](https://rfbressan.shinyapps.io/trade_project1/)
+
+## Estimating $\pi_{ij}^k$
+
+The trade shares are defined as $\pi_{ij}^k:=x_{ij}^k / \sum_{i'} x_{i'j}^k$, where the summation index represents all countries, $i'\in \mathcal{I}$. This can be done straight from WIOD data.
+
+## Matching wages to guarantee balanced trade 
+
+I assume that trade shares in the baseline economy (in the model) are equal to the ones observed in the data (as well as consumption shares over sectors per country), and used this to find the wages that  guarantee balanced trade. So, I need to compute what goes into equation \@ref(eq:bal-trade), assumption A5 of @costinot2012goods. 
+ 
+\begin{equation}
+   \sum_j\sum_k \pi_{ij}^k\alpha_j^k\gamma_j = \gamma_i
+   (\#eq:bal-trade)
+\end{equation}
+ 
+After some manipulation of the above equation we arrive at a linear system of the form:
+
+\begin{equation}
+  \Lambda\cdot\gamma = \gamma
+  (\#eq:lin-sys)
+\end{equation}
+
+where $\gamma=[\gamma_1, \gamma_2, \ldots, \gamma_I]'$ and $\lambda_{ij}=\sum_k \pi_{ij}^k \alpha_{j}^k$ are the entries of the matrix $\Lambda$.
+
+We have already estimated, $\alpha_{j}^k$, $\pi_{ij}^k$ from data. With those values we can compute $\lambda_{ij}$ and assemble the $\Lambda$ matrix:
+
+\begin{equation}
+\Lambda = \begin{bmatrix}
+  \lambda_{11} & \lambda_{12} & \ldots & \lambda_{1I}\\ 
+  \lambda_{21} &  \lambda_{22} &  & \vdots\\ 
+  \vdots &  & \ddots & \\
+  \lambda_{I1} &  & \ldots & \lambda_{II} 
+\end{bmatrix}
+\end{equation}
+
+Now we are left to solve the system $\Lambda\cdot\gamma=\gamma$. Beware the constraint that $\mathbf{1}\cdot\gamma=1$, that is, we need to normalize the resulting eigenvector. This system is the definition of the eigenvector $\gamma$ associated to the $\Lambda$'s matrix egeinvalue equal to one! Therefore, all we need to find $\gamma$ is this eigenvector and normalize it, such that its entries sum to one. (Note this is not the same as the eigenvector's norm equal to one!).
+
+Once I have the solution $\gamma$, the vector of coutries shares on world income, it is possible to calculate the wages that guaratee assumption A5 as $w_i=1/L_i \cdot\sum_{i'}w_{i'}L_{i'}$, where $L_i$ represents the labor force in country $i$ and I normalize USA's wage to 1.
+
+## Computing trade costs $d_{ij}^k$
+
+From equation \@ref(eq:bilateral-trade), valid under assumptions 1 to 4 in @costinot2012goods it's possible to compute all values of $d_{ij}^k$.
+
+\begin{equation}
+x_{ij}^k=\frac{(w_id_{ij}^k/z_i^k)^{-\theta}}{\sum_{i'}(w_{i'}d_{i'j}^k/z_{i'}^k)^{-\theta}}\cdot\alpha_j^k w_j L_j
+(\#eq:bilateral-trade)
+\end{equation}
+
+and given that $\pi_{ij}^k\equiv x_{ij}^k / \sum_i x_{ij}^k$, we arrive at:
+
+\begin{equation}
+\pi_{ij}^k = \frac{(w_id_{ij}^k/z_i^k)^{-\theta}}{\sum_{i'}(w_{i'}d_{i'j}^k/z_{i'}^k)^{-\theta}}.
+(\#eq:trade-shares)
+\end{equation}
+
+This is a non-linear system of $I\times I\times K$ equations to solve for each $d_{ij}^k$. If we further impose $d_{jj}^k=1$, then it can be easily solved for $d_{ij}^k$ when $i\neq j$ in terms of $\delta_{ij}^k \equiv \pi_{ij}^k / \pi_{jj}^k$, **at the cost of not matching exactly** trade flows $x_{ij}^k$, thus:
+
+\begin{equation}
+  \delta_{ij}^k = \left(\frac{d_{ij}^k\cdot w_i/w_j}{z_i^k / z_j^k}\right)^{-\theta}
+\end{equation}
+   
+and inverting this relation for $d_{ij}^k$ we have:
+
+\begin{equation}
+  d_{ij}^k=\frac{\left(\delta_{ij}^k\right)^{-1/\theta}}{w_i/w_j}\cdot z_i/z_j
+\end{equation}
+
+Finally, I have calibrated the model inputing $\theta$'s value taken from the orignal article to be 6.543, revealed productivities are found by means of a regression like equation \@ref(eq:productivity), shares $\alpha_j^k$ and $\pi_{ij}^k$ and labor force $L_i$ are calculated (or gathered) from WIOD data, shares of world income and consequently, wages are matched such that equation \@ref(eq:bal-trade) helds and the last term computed is trade costs, which is a **residual** term and is found through equation \@ref(eq:bilateral-trade) with the additional assumption of $d_{jj}^k=1$. Now I can check the calibration quality.
+
+_Are trade costs always greater than one? If not, how can I interpret this result?_
+
+Let's take a look at a sample of trade costs.
+
+```{r trade-costs, results = 'markup'}
+set.seed(123)
+trade_flows[sample(.N, 20), .(out_country, in_country, out_ind, d_ijk)]
+```
+
+Clearly not all costs are greater than or equal to one. There is some economic reasons to believe export costs may eventually be lower than one, for example, country $i$'s incentives to export turning the export of a good cheaper then selling it in the local market. But trade costs are also a residual variable in our calibration, thus, it captures not only true costs but also any other factor not directly modeled.
+
+_How are the correlations of predicted trade values and shares to their data counterparts?_
+
+```{r trade-cor, results = 'asis'}
+sprintf("Correlation of trade values: %.4f", 
+        trade_flows[, cor(pred_value, value)])
+cat("\n")
+sprintf("Correlation of trade shares: %.4f",
+        trade_flows[, cor(pred_pi, pi_ijk)])
+```
+
+We have a good correlation of predicted trade values $\hat x_{ij}^k$ to their computed from data values, although not exceptional. But this is not a concern since we have normalized the values. What is more interesting to check is trade shares and those match exactly the ones computed from data! 
+
+<!-- I feel the hypothesis $d_{jj}^k = 1$ is playing a big role here. Whenever we made such an assumption, we are losing degrees of freedom to compute the implied by equation \@ref(eq:trade-shares), therefore we are not able to recover the exactly values implied by our data. This is a simplification assumption, which results in a simpler expression to calculate trade costs from different countries, but it may be distorting the estimated values.  -->
+
+As the observation in the project guidelines make clear, we could opt not to make such an assumption and solve the whole system for trade costs the yields predicted values of trade shares as close as possible to the real (data calculated) ones. But this involves a computational burden of solving the high dimesion non-linear system given by equation \@ref(eq:trade-shares).
+
+Moreover, the hypothesis of balanced trade in equation \@ref(eq:bal-trade) is perfectly satisfied since we have a linear system and a numerical solution to that. Therefore, the wages calculated in calibration are the ones necessary to make valid that hypothesis.
+
+If we manipulate a bit equation \@ref(eq:bal-trade), the balanced trade condition can be written as:
+
+\begin{equation}
+  \sum_j\sum_k \frac{(w_id_{ij}^k/z_i^k)^{-\theta}}{\sum_{i'}(w_{i'}d_{i'j}^k/z_{i'}^k)^{-\theta}}\cdot\alpha_j^k w_j L_j =w_i L_i
+\end{equation}
+
+then we can compute the left hand side of this equation and compares to each country's income
+
+```{r bal-trade-check, results='asis'}
+sprintf("Correlation of LHS and RHS: %.4f", 
+        lhs_tb[, .(cor(lhs, rhs))])
+cat("\n")
+sprintf("Predicted World Income: %.2f",
+        lhs_tb[, .(predict = sum(lhs))])
+cat("\n")
+sprintf("Data World Income: %.2f",
+        lhs_tb[, .(data = sum(rhs))])
+```
+
+Balanced trade condition looks good! The calibration is well done. 
+
+# Counterfactuals
+
+Now that we have implemented and calibrated the model, we are able to attain our second objective, that is, to find the welfare losses from the current Covid-19 crisis, for Brazil and the rest of the world. But let's first define our welfare metric.
+
+Welfare in this economy is defined as the real purchasing power of wages, $W_i\equiv w_i/p_i$, where $p_i=$ is the price index. We will compute percentual change in welfare as $\log(W_{base}/W_{covid})\cdot 100$. So, in order to calculate welfare, we need the price index for each country. Recapitulating from @eaton2002technology we can find the price **parameter** $\Phi_j^k$ as $\sum_i(w_id_{ij}^k/z_i^k)^{-\theta}$ and from @costinot2012goods we know that the price **index** is given by $p_j=\Pi_k(p_j^k)^{\alpha_j^k}$, where $p_j^k=(\Phi_j^k)^{-1/\theta}$ is the price index for industry $k$. Once we have found the wages $w_i$ in the newly simulated counterfactual, we are able to find the price index, therefore, the welfare for each country in this scenario.
+
+## The Covid-19 conterfactual
+
+To simulate a counterfactual scenario we need to change one or more exogenous parameters and then solve back the model, starting with the endogenous wages. We have the following guideline:
+
+1. Find wages from balanced trade condition:
+
+\begin{equation}
+  \sum_j\sum_k \frac{(w_id_{ij}^k/z_i^k)^{-\theta}}{\sum_{i'}(w_{i'}d_{i'j}^k/z_{i'}^k)^{-\theta}}\cdot\alpha_j^k w_j L_j =w_i L_i
+\end{equation}
+
+2. Find price parameter $\Phi_j^k=\sum_i(w_id_{ij}^k/z_i^k)^{-\theta}$
+
+3. Find price index $p_j=\Pi_k(p_j^k)^{\alpha_j^k}$, where $p_j^k=(\Phi_j^k)^{-1/\theta}$
+
+4. Find welfare $W_i = w_i/p_i$
+
+5. Find trade shares $\pi_{ij}^k=\frac{(w_id_{ij}^k/z_i^k)^{-\theta}}{\Phi_j^k}$
+
+6. Find trade values $x_{ij}^k=\pi_{ij}^k \alpha_j^k w_j L_j$
+
+Where steps 5 and 6 are optional to this project but they help at giving a complete answer to the simulation process.
+
+The most important step is the first one, where we need to solve for endogenous wages from a non-linear system of equations. This system is solved numerically and, for our project, is moderately sized at 44 countries.
+
+
+
+# References
