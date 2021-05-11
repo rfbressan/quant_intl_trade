@@ -14,11 +14,16 @@ library(plotly)
 library(ggplot2)
 library(dplyr)
 library(fst)
+library(data.table)
 
 # Global variables for the app
 # Always load the baseline welfare
 base_welfare <- read_fst("base_bycountry.fst", as.data.table = TRUE)
 countries <- base_welfare[, out_country]
+# Industries names for tooltip in Country tab
+industries <- fread("industries.csv")
+# Forecast of productivity changes
+prod_changes <- read_fst("prod_changes.fst", as.data.table = TRUE)
 
 # Define UI for application that draws a histogram
 ui <- fluidPage(
@@ -36,7 +41,7 @@ ui <- fluidPage(
             p("There are 4 scenarios to choose from."),
             p("1. Baseline year 2014"),
             p("2. 10% Increased trade costs due to Covid-19"),
-            p("3. 3% reduction in productivity"),
+            p("3. OECD forecast reduction in productivity"),
             p("4. Combination of scenarios 2 and 3"),
             selectInput("scenario",
                         "Choose a scenario:",
@@ -45,6 +50,9 @@ ui <- fluidPage(
                           "Productivity reduction",
                           "Combination"),
                         selected = 1),
+            downloadButton("download_report", "Download Report",
+                           icon = shiny::icon("download")),
+            br(),
             br(),
             img(src = "logo-desktop.png", height = 96, width = 304),
             br(),
@@ -86,7 +94,8 @@ ui <- fluidPage(
                                      selected = "BRA"),
                          fluidRow(
                              infoBoxOutput("hi_prod"),
-                             infoBoxOutput("low_prod")
+                             infoBoxOutput("low_prod"),
+                             uiOutput("chg_prod")
                          ),
                          plotlyOutput("ind_share", height = "300px")
                          ),
@@ -105,7 +114,7 @@ server <- function(input, output) {
         fst_name <- switch(input$scenario,
                       "Baseline" = "base_bycountry.fst",
                       "Increase in trade costs" = "sc1_bycountry.fst",
-                      "Productivity reduction" = "sc2_bycountry.fst",
+                      "Productivity reduction" = "sc21_bycountry.fst",
                       "Combination" = "sc3_bycountry.fst",
                       "base_bycountry.fst"
         )
@@ -119,7 +128,7 @@ server <- function(input, output) {
         fst_name <- switch(input$scenario,
                            "Baseline" = "base_trade.fst",
                            "Increase in trade costs" = "sc1_trade.fst",
-                           "Productivity reduction" = "sc2_trade.fst",
+                           "Productivity reduction" = "sc21_trade.fst",
                            "Combination" = "sc3_trade.fst",
                            "base_trade.fst"
         )
@@ -128,13 +137,26 @@ server <- function(input, output) {
     productivity <- reactive({
         req(input$country)
         trade_dt()[out_country == input$country, by = c("out_country", "out_ind"),
-                   .(z_ik = first(z_ik))]
+                   .(z_ik = first(z_ik))
+                   ][
+                       industries, on = "out_ind", nomatch = 0
+                   ]
     })
     ind_shares <- reactive({
         req(input$country)
         trade_dt()[in_country == input$country, by = c("in_country", "out_ind"), 
-                   .(alpha_jk = first(alpha_jk))][order(-alpha_jk)]
+                   .(alpha_jk = first(alpha_jk))
+                   ][
+                       industries, on = "out_ind", nomatch = 0
+                   ]
     })
+    # Download handler
+    output$download_report <- downloadHandler(
+        filename = "trade_project1.pdf",
+        content = function(file){
+            file.copy("www/project1.pdf", file)
+        }
+    )
     
     # Compute outputs
     # Dashboard
@@ -222,7 +244,7 @@ server <- function(input, output) {
         req(input$country)
         infoBox("Most productive industry", 
                 prettyNum(productivity()[, max(z_ik)], digits = 6), 
-                productivity()[which.max(z_ik), out_ind],
+                productivity()[which.max(z_ik), ind_name],
                 icon = icon("cogs"),
                 color = "green",
                 fill = TRUE)
@@ -232,16 +254,33 @@ server <- function(input, output) {
         req(input$country)
         infoBox("Least productive industry", 
                 prettyNum(productivity()[, min(z_ik)], digits = 6), 
-                productivity()[which.min(z_ik), out_ind],
+                productivity()[which.min(z_ik), ind_name],
                 icon = icon("cogs"),
                 color = "red",
                 fill = TRUE)
     })
+    
+    output$chg_prod <- renderUI({
+        if (input$scenario == "Productivity reduction" |
+            input$scenario == "Combination") {
+            prod_num <- prettyNum(
+                100*prod_changes[out_country == input$country, chg_rel],
+                digits = 2)
+            infoBox("Change in productivity",
+                    paste0(prod_num, "%"),
+                    "OECD forecast",
+                    icon = icon("cogs"),
+                    color = "blue",
+                    width = 12,
+                    fill = TRUE)
+        }    
+    })
+    
     output$ind_share <- renderPlotly({
         req(input$country)
         ggplotly(
             ggplot(ind_shares(), 
-                   aes(x = out_ind, y = alpha_jk)) +
+                   aes(x = out_ind, y = alpha_jk, text = ind_name)) +
             geom_col(aes(fill = out_ind), alpha = 0.7) +
             labs(x = "Industry Code", y = "Participation in GDP") +
             scale_color_viridis_d() +
@@ -249,7 +288,7 @@ server <- function(input, output) {
             theme(legend.position = "none",
                   axis.text.x = element_text(angle = 90))
             
-        )
+        , tooltip = c("x", "y", "text"))
     })
 
     # Table

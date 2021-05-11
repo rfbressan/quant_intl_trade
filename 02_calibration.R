@@ -175,9 +175,6 @@ gamma_i <- data.table(out_country = colnames(Lambda), gamma_i = as.numeric(gamma
 gamma_i[, .(sum = sum(gamma_i), min = min(gamma_i), max = max(gamma_i))]
 #' ## Get Socio-Economic data
 employed <- read_fst("output/employed.fst", as.data.table = TRUE)
-#' ATTENTION: socio-economic data from WIOD does not include ROW! I will just
-#' input the employed in ROW having the same value as the sum of all countries!
-employed <- rbind(employed, list("ROW", employed[, sum(employed_i)]))
 #' Now merge with gamma
 gamma_i <- merge(gamma_i, employed, by = "out_country")
 #' Normalize USA wages to 1 and compute the world's wage bill $\sum_i w_iL_i$

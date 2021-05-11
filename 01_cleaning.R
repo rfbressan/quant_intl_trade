@@ -68,6 +68,31 @@ wiod_sea <- as.data.table(read.xlsx("input/WIOD_SEA_Nov16.xlsx", sheet = "DATA")
 #' Employed population in thousands
 employed <- wiod_sea[variable == "EMP", .(employed = sum(`2014`)), by = "country"]
 setnames(employed, c("country", "employed"), c("out_country", "employed_i"))
-
+#' ATTENTION: socio-economic data from WIOD does not include ROW! I will just
+#' input the employed in ROW having the same value as the sum of all countries!
+employed <- rbind(employed, list("ROW", employed[, sum(employed_i)]))
 #' Write employed to fst file
 write_fst(employed, "output/employed.fst")
+
+#' Get productivities forecast from OECD
+productivity <- fread("input/productivity_forecast_oecd.csv")
+productivity[, by = LOCATION,
+             chg_prod := log(Value) - log(shift(Value))]
+usa_chg_prod <- productivity[LOCATION == "USA" & TIME == 2020, chg_prod]
+#' Make all productivity changes relative to USA
+productivity[, chg_rel := (chg_prod - usa_chg_prod)]
+#' Countries in our database
+countries <- employed[, .(out_country)]
+#' Merge productivities only for countries in DB
+prod_changes <- merge(countries, productivity[TIME == 2020], 
+                      by.x = "out_country", by.y = "LOCATION",
+                      all.x = TRUE)
+#' NAs in chg_rel are countries we don't have productivity forecast. Let's set
+#' them to the median changes of other countries
+median_chg <- median(prod_changes$chg_rel, na.rm = TRUE)
+setnafill(prod_changes, fill = median_chg, cols = "chg_rel")
+#' Write prod_changes to file to use in counterfactuals and shiny app
+write_fst(prod_changes[, .(out_country, chg_prod, chg_rel)],
+          "output/prod_changes.fst")
+write_fst(prod_changes[, .(out_country, chg_prod, chg_rel)],
+          "trade_project1/prod_changes.fst")

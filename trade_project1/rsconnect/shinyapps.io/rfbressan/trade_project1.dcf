@@ -5,9 +5,9 @@ account: rfbressan
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 4038217
-bundleId: 4524738
+bundleId: 4575498
 url: https://rfbressan.shinyapps.io/trade_project1/
-when: 1619522577.06012
-lastSyncTime: 1619522577.06013
+when: 1620515896.66567
+lastSyncTime: 1620515896.66568
 asMultiple: FALSE
 asStatic: FALSE

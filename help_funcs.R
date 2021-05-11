@@ -41,16 +41,16 @@ find_wages <- function(cal_dt, wages0, maxit = 10) {
   # opt_res <- nlm(obj_fun, wages0, cal_dt = cal_dt, iterlim = 100)
   # wages_dt <- data.table(out_country = c(names(opt_res$estimate), "USA"),
   #                        wage_i = c(opt_res$estimate), 1)
-  # opt_res <- optim(wages0, obj_fun, cal_dt = cal_dt,
-  #                  method = "BFGS",
-  #                  control = list(maxit = 100))
+  opt_res <- optim(wages0, obj_fun, cal_dt = cal_dt,
+                   method = "BFGS",
+                   control = list(maxit = 100))
   # 
   # wages_dt <- data.table(out_country = c(names(opt_res$par), "USA"),
   #                        wage_i = c(opt_res$par, 1))
-  opt_res <- optimx::optimr(wages0, obj_fun, cal_dt = cal_dt,
-                            # lower = 0,
-                            method = "BFGS",
-                            control = list(maxit = maxit))
+  # opt_res <- optimx::optimr(wages0, obj_fun, cal_dt = cal_dt,
+  #                           # lower = 0,
+  #                           method = "BFGS",
+  #                           control = list(maxit = maxit))
   message(sprintf("Convergence code in find_wages: %d", opt_res$convergence))
   wages_dt <- data.table(out_country = names(opt_res$par),
                          wage_i = opt_res$par)

@@ -1,7 +1,7 @@
 ---
 title: "Trade Project 1"
 author: "Rafael Felipe Bressan"
-date: "25/04/2021 (last update: `r Sys.Date()`)"
+date: "2021-04-25 (last update: `r Sys.Date()`)"
 output: 
   bookdown::pdf_document2
 bibliography: references.bib
@@ -120,7 +120,7 @@ and given that $\pi_{ij}^k\equiv x_{ij}^k / \sum_i x_{ij}^k$, we arrive at:
 (\#eq:trade-shares)
 \end{equation}
 
-This is a non-linear system of $I\times I\times K$ equations to solve for each $d_{ij}^k$. If we further impose $d_{jj}^k=1$, then it can be easily solved for $d_{ij}^k$ when $i\neq j$ in terms of $\delta_{ij}^k \equiv \pi_{ij}^k / \pi_{jj}^k$, **at the cost of not matching exactly** trade flows $x_{ij}^k$, thus:
+This is a non-linear system of $I\times I\times K$ equations to solve for each $d_{ij}^k$. If we further impose $d_{jj}^k=1$, then it can be easily solved for $d_{ij}^k$ when $i\neq j$ in terms of $\delta_{ij}^k \equiv \pi_{ij}^k / \pi_{jj}^k$, thus:
 
 \begin{equation}
   \delta_{ij}^k = \left(\frac{d_{ij}^k\cdot w_i/w_j}{z_i^k / z_j^k}\right)^{-\theta}
@@ -186,6 +186,12 @@ Balanced trade condition looks good! The calibration is well done.
 
 # Counterfactuals
 
+```{r load-counterfactuals, results='hide'}
+rm(list = ls())
+gc()
+load("output/conterfactuals.RData")
+```
+
 Now that we have implemented and calibrated the model, we are able to attain our second objective, that is, to find the welfare losses from the current Covid-19 crisis, for Brazil and the rest of the world. But let's first define our welfare metric.
 
 Welfare in this economy is defined as the real purchasing power of wages, $W_i\equiv w_i/p_i$, where $p_i=$ is the price index. We will compute percentual change in welfare as $\log(W_{base}/W_{covid})\cdot 100$. So, in order to calculate welfare, we need the price index for each country. Recapitulating from @eaton2002technology we can find the price **parameter** $\Phi_j^k$ as $\sum_i(w_id_{ij}^k/z_i^k)^{-\theta}$ and from @costinot2012goods we know that the price **index** is given by $p_j=\Pi_k(p_j^k)^{\alpha_j^k}$, where $p_j^k=(\Phi_j^k)^{-1/\theta}$ is the price index for industry $k$. Once we have found the wages $w_i$ in the newly simulated counterfactual, we are able to find the price index, therefore, the welfare for each country in this scenario.
@@ -214,6 +220,60 @@ Where steps 5 and 6 are optional to this project but they help at giving a compl
 
 The most important step is the first one, where we need to solve for endogenous wages from a non-linear system of equations. This system is solved numerically and, for our project, is moderately sized at 44 countries.
 
+We will simulate 3 scenarios to study the impact of COVID-19 pandemic on World welfare. The first one is to assume an increase of 10% on all international trade costs. The pandemic had countries rising tariff and non-tariff barriers to trade, blacklistted products were forbiden to both entry and leaving countries. The second scenario relates to lockdown imposition and its effects on productivities. **We keep the normalization done in productivities while decreasing all other values by 3%.**[^oecd] That way the USA is still the reference country, and other countries had lost relative productivity. Finally, our last scenario combines the previous two, trade costs have increased and at the same time productivities were reduced. Simulation results from these scenarios in comparison to the baseline are provided in the folowing tables.
+
+[^oecd]: https://data.oecd.org/lprdty/labour-productivity-forecast.htm
+
+```{r wage-tbl, results='asis'}
+kbl(wages_tbl, digits = 4, linesep = "", booktabs = TRUE,
+    longtable = TRUE,
+    caption = "World wages across COVID-19 scenarios",
+    col.names = c("Country", "Baseline", "Scenario 1", 
+                  "Scenario 2", "Scenario 3")) %>% 
+  kable_classic(full_width = FALSE,
+                latex_options = c("HOLD_position", "repeat_header")) %>% 
+  footnote(threeparttable = TRUE,
+           footnote_as_chunk = TRUE,
+           general = "USA wage is normalized to one in all scenarios.")
+
+```
+
+In Table \@ref(tab:wage-tbl) we provide the wages prevailing in each country for each scenario. All countries will have their wages lowered during the pandemic, specially in the scenario of rising trade costs. Obviously, some countries will be more affected than others.
+
+We can compute the World's GDP in each scenario. The result is shown in Table \@ref(tab:gdp-tbl) and as expected, world income decreases with the pandemic shock. This deleterious effect is compounded in the third scenario, where we have both an increase in trade costs and productivities falling.
+
+```{r gdp-tbl, results='asis'}
+kbl(gdp_tbl, digits = 4, linesep = "", booktabs = TRUE,
+    longtable = TRUE,
+    format.args = list(big.mark = ","),
+    caption = "World GDP across COVID-19 scenarios",
+    col.names = c("Baseline", "Scenario 1", 
+                  "Scenario 2", "Scenario 3")) %>% 
+  kable_classic(full_width = FALSE,
+                latex_options = c("HOLD_position", "repeat_header")) %>% 
+  footnote(threeparttable = TRUE,
+           footnote_as_chunk = TRUE,
+           general = "USA wage is normalized to one in all scenarios.")
+
+```
+
+Finally, we can make contrafactual welfare analysis. Table \@ref(tab:welfare-tbl) summarizes percentual changes in welfare for each country. What we see is a reduction in welfare across the board in all scenarios, with trade costs having the most important impact. Curiously, when we combine trade costs and productivities shocks in scenario 3, this is not the worst case for any country. This suggests that wages and prices do adjust in a general equilibrium effect such that welfare is smoothed, while the biggest hit is felt in production (i.e. GDP).
+
+The [web-app](https://rfbressan.shinyapps.io/trade_project1/) provided has interactive visualizations on all those scenarios and metrics.
+
+```{r welfare-tbl, results='asis'}
+kbl(welfare_tbl, digits = 4, linesep = "", booktabs = TRUE,
+    longtable = TRUE,
+    caption = "Percentual changes in welfare across COVID-19 scenarios",
+    col.names = c("Country", "Scenario 1", 
+                  "Scenario 2", "Scenario 3")) %>% 
+  kable_classic(full_width = FALSE,
+                latex_options = c("HOLD_position", "repeat_header")) %>% 
+  footnote(threeparttable = TRUE,
+           footnote_as_chunk = TRUE,
+           general = "USA wage and productivities are normalized to one in all scenarios.")
+
+```
 
 
 # References
