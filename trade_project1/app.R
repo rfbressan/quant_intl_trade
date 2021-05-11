@@ -284,6 +284,7 @@ server <- function(input, output) {
             geom_col(aes(fill = out_ind), alpha = 0.7) +
             labs(x = "Industry Code", y = "Participation in GDP") +
             scale_color_viridis_d() +
+            scale_y_continuous(labels = scales::percent) +
             theme_classic() +
             theme(legend.position = "none",
                   axis.text.x = element_text(angle = 90))
@@ -322,12 +323,13 @@ server <- function(input, output) {
             dataset()[, .(out_country, welfare_i)], 
             on = "out_country"
         ][, .(out_country,
-              chg_welfare = log(i.welfare_i / welfare_i)*100)]
+              chg_welfare = log(i.welfare_i / welfare_i))]
         ggplotly(
             ggplot(chg_welfare, aes(x = out_country, y = chg_welfare)) +
                 geom_col(aes(fill = out_country), alpha = 0.6) +
                 labs(x = "Country", y = "Percentage change in Welfare") +
                 scale_color_viridis_d() +
+                scale_y_continuous(labels = scales::percent) +
                 theme_classic() +
                 theme(legend.position = "none",
                       axis.text.x = element_text(angle = 90))

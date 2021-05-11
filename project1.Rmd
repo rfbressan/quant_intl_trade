@@ -220,9 +220,11 @@ Where steps 5 and 6 are optional to this project but they help at giving a compl
 
 The most important step is the first one, where we need to solve for endogenous wages from a non-linear system of equations. This system is solved numerically and, for our project, is moderately sized at 44 countries.
 
-We will simulate 3 scenarios to study the impact of COVID-19 pandemic on World welfare. The first one is to assume an increase of 10% on all international trade costs. The pandemic had countries rising tariff and non-tariff barriers to trade, blacklistted products were forbiden to both entry and leaving countries. The second scenario relates to lockdown imposition and its effects on productivities. **We keep the normalization done in productivities while decreasing all other values by 3%.**[^oecd] That way the USA is still the reference country, and other countries had lost relative productivity. Finally, our last scenario combines the previous two, trade costs have increased and at the same time productivities were reduced. Simulation results from these scenarios in comparison to the baseline are provided in the folowing tables.
+We will simulate 3 scenarios to study the impact of COVID-19 pandemic on World welfare. The first one is to assume an increase of 10% on all international trade costs. The pandemic had countries rising tariff and non-tariff barriers to trade, blacklistted products were forbiden to both entry and leaving countries. The second scenario relates to lockdown imposition and its effects on productivities. We keep the normalization done in the calibration and change productivities according to the OECD projections[^oecd]. That way, the USA is still the reference country, and other countries had lost (or gained in the unique case of Turkey) **relative productivity**. Countries not contemplated in OECD forecasts, like Brazil and the rest of the world among others, had their changes in relative productivity set as the median value[^median] of all other countries.  Finally, our last scenario combines the previous two, trade costs have increased and at the same time productivities were reduced. Simulation results from these scenarios in comparison to the baseline are provided in the folowing tables.
 
-[^oecd]: https://data.oecd.org/lprdty/labour-productivity-forecast.htm
+[^oecd]: Accessible at: [https://data.oecd.org/lprdty/labour-productivity-forecast.htm](https://data.oecd.org/lprdty/labour-productivity-forecast.htm)
+
+[^median]: The median change in relative productivity was `r paste0(format(prod_changes[out_country == "ROW", 100*chg_rel], digits = 3), "%")`
 
 ```{r wage-tbl, results='asis'}
 kbl(wages_tbl, digits = 4, linesep = "", booktabs = TRUE,

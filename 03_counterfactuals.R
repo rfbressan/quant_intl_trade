@@ -85,8 +85,8 @@ names(wages0) <- wages_exUS$out_country
 #' # Counterfactuals: COVID-19 effects. 
 #' 
 #' ## Scenario 0: recompute the baseline
-wages_sc0 <- find_wages(exog, wages0 + rnorm(43, sd = 0.001), maxit = max_iter)
-wages_sc0[wages_cal, on = "out_country", .(diff = wage_i - i.wage_i)]
+# wages_sc0 <- find_wages(exog, wages0 + rnorm(43, sd = 0.001), maxit = max_iter)
+# wages_sc0[wages_cal, on = "out_country", .(diff = wage_i - i.wage_i)]
 #' All differences are virtually zero. Our algorithm is working properly 
 #' 
 #' ## Scenario 1: 10% increase in trade costs for every 
@@ -117,26 +117,26 @@ bycountry_sc1 <- merge(bycountry_sc1,
 #' We will reduce all countries' productivities by 1% in each step, compared to 
 #' the reference sector. The USA is still the reference country.
 #' 
-wages0_2 <- wages0
-for (n in seq_len(n_prod)) {
-  covid_sc2 <- copy(exog)
-  covid_sc2[z_ik != 1, z_ik := (1 + n*prod_shock)*z_ik]
-  covid_sc2[z_jk != 1, z_jk := (1 + n*prod_shock)*z_jk]
-  wages_sc2 <- find_wages(covid_sc2, wages0_2, maxit = max_iter)
-  wages0_2 <- wages_sc2$wage_i
-  names(wages0_2) <- wages_exUS$out_country
-}
-#' 2., 3. and 4. Find price parameter, price index and welfare
-bycountry_sc2 <- find_welfare(wages_sc2, covid_sc2)
-#' 5. and 6. Retrieve trade shares and flows
-trade_sc2 <- find_shares_values(wages_sc2, covid_sc2)
-#' Compute trade and trade per capita by country
-bycountry_sc2 <- merge(bycountry_sc2,
-                       trade_sc2[, by = out_country,
-                                 .(trade = sum(x_ijk),
-                                   trade_pc = sum(x_ijk / employed_i))],
-                       by = "out_country",
-                       all.x = TRUE)
+#' wages0_2 <- wages0
+#' for (n in seq_len(n_prod)) {
+#'   covid_sc2 <- copy(exog)
+#'   covid_sc2[z_ik != 1, z_ik := (1 + n*prod_shock)*z_ik]
+#'   covid_sc2[z_jk != 1, z_jk := (1 + n*prod_shock)*z_jk]
+#'   wages_sc2 <- find_wages(covid_sc2, wages0_2, maxit = max_iter)
+#'   wages0_2 <- wages_sc2$wage_i
+#'   names(wages0_2) <- wages_exUS$out_country
+#' }
+#' #' 2., 3. and 4. Find price parameter, price index and welfare
+#' bycountry_sc2 <- find_welfare(wages_sc2, covid_sc2)
+#' #' 5. and 6. Retrieve trade shares and flows
+#' trade_sc2 <- find_shares_values(wages_sc2, covid_sc2)
+#' #' Compute trade and trade per capita by country
+#' bycountry_sc2 <- merge(bycountry_sc2,
+#'                        trade_sc2[, by = out_country,
+#'                                  .(trade = sum(x_ijk),
+#'                                    trade_pc = sum(x_ijk / employed_i))],
+#'                        by = "out_country",
+#'                        all.x = TRUE)
 #' ## Scenario 2.1: change in productivities from OECD forecasts
 #' 
 wages0_21 <- wages0
@@ -201,28 +201,28 @@ bycountry_sc3 <- merge(bycountry_sc3,
 #' Compare wages with baseline
 wages_tbl <- wages_cal[out_country != "USA"
                        ][wages_sc1, on = "out_country"
-                         ][wages_sc2, on = "out_country"
+                         # ][wages_sc2, on = "out_country"
                            ][wages_sc21, on = "out_country"
                              ][wages_sc3, on = "out_country"]
-setnames(wages_tbl, c("wage_i", "i.wage_i", "i.wage_i.1", "i.wage_i.2", "i.wage_i.3"),
-         c("Baseline", "Scenario1", "Scenario2", "Scenario2.1", "Scenario3"))
+setnames(wages_tbl, c("wage_i", "i.wage_i", "i.wage_i.1", "i.wage_i.2"),
+         c("Baseline", "Scenario1", "Scenario2", "Scenario3"))
 wages_tbl
 
 #' How does world GDP compare?
 gdp_cols <- c("out_country", "wage_i", "employed_i")
 gdp_tbl <- base_welfare[, ..gdp_cols
                         ][bycountry_sc1[, ..gdp_cols], on = "out_country"
-                          ][bycountry_sc2[, ..gdp_cols], on = "out_country"
+                          # ][bycountry_sc2[, ..gdp_cols], on = "out_country"
                             ][bycountry_sc21[, ..gdp_cols], on = "out_country"
                               ][bycountry_sc3[, ..gdp_cols], on = "out_country"]
-setnames(gdp_tbl, c("wage_i", "i.wage_i", "i.wage_i.1", "i.wage_i.2", "i.wage_i.3",
+setnames(gdp_tbl, c("wage_i", "i.wage_i", "i.wage_i.1", "i.wage_i.2",
                     "employed_i", "i.employed_i", "i.employed_i.1", 
-                    "i.employed_i.2", "i.employed_i.3"),
-         c("b_wage", "sc1_wage", "sc2_wage", "sc21_wage", "sc3_wage",
-           "b_emp", "sc1_emp", "sc2_emp", "sc21_emp", "sc3_emp"))
+                    "i.employed_i.2"),
+         c("b_wage", "sc1_wage", "sc21_wage", "sc3_wage",
+           "b_emp", "sc1_emp", "sc21_emp", "sc3_emp"))
 gdp_tbl <- gdp_tbl[, .(baseline = sum(b_wage*b_emp),
                        scenario1 = sum(sc1_wage*sc1_emp),
-                       scenario2 = sum(sc2_wage*sc2_emp),
+                       # scenario2 = sum(sc2_wage*sc2_emp),
                        scenario21 = sum(sc21_wage*sc21_emp),
                        scenario3 = sum(sc3_wage*sc3_emp))]
 
@@ -234,16 +234,16 @@ gdp_tbl <- gdp_tbl[, .(baseline = sum(b_wage*b_emp),
 wel_cols <- c("out_country", "welfare_i")
 welfare_tbl <- base_welfare[, ..wel_cols
                             ][bycountry_sc1[, ..wel_cols], on = "out_country"
-                              ][bycountry_sc2[, ..wel_cols], on = "out_country"
+                              # ][bycountry_sc2[, ..wel_cols], on = "out_country"
                                 ][bycountry_sc21[, ..wel_cols], on = "out_country"
                                   ][bycountry_sc3[, ..wel_cols], on = "out_country"]
 setnames(welfare_tbl, 
-         c("welfare_i", "i.welfare_i", "i.welfare_i.1", "i.welfare_i.2", "i.welfare_i.3"),
-         c("Baseline", "Scenario1", "Scenario2", "Scenario21", "Scenario3"))
+         c("welfare_i", "i.welfare_i", "i.welfare_i.1", "i.welfare_i.2"),
+         c("Baseline", "Scenario1", "Scenario2", "Scenario3"))
 welfare_tbl <- welfare_tbl[, by = out_country,
                            lapply(.SD, function(x) {log(x / Baseline)*100}), 
                            .SDcols = c("Baseline", "Scenario1", "Scenario2",
-                                       "Scenario21", "Scenario3")
+                                       "Scenario3")
                            ][, -c("Baseline")]         
 
 #' Welfare is reduced across the board!!
@@ -255,10 +255,10 @@ save.image("output/conterfactuals.RData")
 
 #' Save data.tables to later use
 write_fst(bycountry_sc1, "trade_project1/sc1_bycountry.fst")
-write_fst(bycountry_sc2, "trade_project1/sc2_bycountry.fst")
+# write_fst(bycountry_sc2, "trade_project1/sc2_bycountry.fst")
 write_fst(bycountry_sc21, "trade_project1/sc21_bycountry.fst")
 write_fst(bycountry_sc3, "trade_project1/sc3_bycountry.fst")
 write_fst(trade_sc1, "trade_project1/sc1_trade.fst")
-write_fst(trade_sc2, "trade_project1/sc2_trade.fst")
+# write_fst(trade_sc2, "trade_project1/sc2_trade.fst")
 write_fst(trade_sc21, "trade_project1/sc21_trade.fst")
 write_fst(trade_sc3, "trade_project1/sc3_trade.fst")
