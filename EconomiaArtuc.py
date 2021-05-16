@@ -151,29 +151,39 @@ class EconomiaArtuc:
 # Script for testing purposes
 if __name__ == "__main__":
     # execute only if run as a script
+    # This is a streamlit application, run it as such:
+    # $ streamlit run EconomiaArtuc.py
+    import streamlit as st
     
+    st.title("Artuç et. al. (2008) replication")
     # Solving the model and ploting wages                             
     econ = EconomiaArtuc(0.5, 0.97, 1, 0.31, 1, 1, 2, 1)
-    eff_at = input("Inform the period where the tariff is actually reduced: ")
+    eff_at = st.number_input("Inform the period where the tariff is actually reduced:",
+        value=10,
+        min_value=1,
+        max_value=12,
+        step=1,
+        format="%d")
     sol = econ.solve_model(0.7, effective_at=int(eff_at))  
-    plt.figure(1)          
-    plt.plot(sol['wx'], label = 'Sector X')
-    plt.plot(sol['wy'], label = 'Sector Y')
-    plt.title("Delayed to t = " + str(eff_at))
-    plt.xlabel("time")
-    plt.ylabel("Wages")
-    plt.legend()
 
-    plt.figure(2)
-    plt.plot(sol['Lx'], label = 'Sector X')
-    plt.plot(sol['Ly'], label = 'Sector Y')
-    plt.title("Delayed to t = " + str(eff_at))
-    plt.xlabel("time")
-    plt.ylabel("Labor force")
-    plt.legend()
-
-    plt.show()  
-
-
-
+    fig1, ax1 = plt.subplots()          
+    ax1.plot(sol['wx'], label = 'Sector X')
+    ax1.plot(sol['wy'], label = 'Sector Y')
+    ax1.set_title("Delayed to t = " + str(eff_at))
+    ax1.set_xlabel("time")
+    ax1.set_ylabel("Wages")
+    ax1.legend()
     
+    fig2, ax2 = plt.subplots()
+    ax2.plot(sol['Lx'], label = 'Sector X')
+    ax2.plot(sol['Ly'], label = 'Sector Y')
+    ax2.set_title("Delayed to t = " + str(eff_at))
+    ax2.set_xlabel("time")
+    ax2.set_ylabel("Labor force")
+    ax2.legend()
+    
+    col1, col2 = st.beta_columns(2)
+    with col1:
+        st.pyplot(fig1)
+    with col2:
+        st.pyplot(fig2)
