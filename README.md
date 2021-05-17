@@ -16,4 +16,4 @@ Use the algorithm described in Artuç, Chaudhuri, and McLaren (2008) - and used 
 
 The Shiny webapp is available at: [https://rfbressan.shinyapps.io/trade_project2](https://rfbressan.shinyapps.io/trade_project2). Some model parameters can be changed and the model will be re-computed. Time paths for labor force, wage, value function and the treshold value are shown in plots.
 
-Also, there is a Python implementation of the model in the file EconomiaArtuc.py. You can run this file directly, it will ask for the time of tariff change (i.e. delayed period) and then will pop up two figures, time paths for wages and labor force.
+Also, there is a Python implementation of the model in the file EconomiaArtuc.py. This contains a [streamlit](https://streamlit.io/) application you can run directly with the command `$ streamlit run EconomicaArtuc.py`, once you have streamlit installed in your environment. It will ask for the time of tariff change (i.e. delayed period) and then will present two figures for the time paths of wages and labor force.

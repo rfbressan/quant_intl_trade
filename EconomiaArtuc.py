@@ -11,7 +11,6 @@ Date: 2021-05-14
 
 import numpy as np
 from scipy.optimize import fsolve
-import matplotlib.pyplot as plt
 
 #Resolve o modelo de Artuc (2008)
 class EconomiaArtuc:
@@ -153,7 +152,14 @@ if __name__ == "__main__":
     # execute only if run as a script
     # This is a streamlit application, run it as such:
     # $ streamlit run EconomiaArtuc.py
+    import matplotlib.pyplot as plt
     import streamlit as st
+    st.set_page_config(
+        page_title="Artuç Simulation",
+        page_icon="",
+        layout="wide",
+        initial_sidebar_state="expanded",
+    )
     
     st.title("Artuç et. al. (2008) replication")
     # Solving the model and ploting wages                             
