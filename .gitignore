@@ -27,3 +27,9 @@ vignettes/*.pdf
 # R Environment Variables
 .Renviron
 input
+main.py
+project1.pdf
+output/calibration.rds
+output/test_data.ods
+output/wiot.fst
+trade_project1/rsconnect/shinyapps.io/rfbressan/trade_project1.dcf
