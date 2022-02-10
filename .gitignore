@@ -33,3 +33,5 @@ output/calibration.rds
 output/test_data.ods
 output/wiot.fst
 trade_project1/rsconnect/shinyapps.io/rfbressan/trade_project1.dcf
+__pycache__/EconomiaArtuc.cpython-39.pyc
+__pycache__/test_artuc.cpython-39-pytest-7.0.0.pyc
