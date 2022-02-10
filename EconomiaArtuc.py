@@ -8,23 +8,35 @@ Date: 2022-02-09
 """
 
 import numpy as np
+from pandas import value_counts
 from scipy.optimize import fsolve
 
 #Resolve o modelo de Artuc (2008)
 class EconomiaArtuc:
     
-    """
-    Inicializa economia
-    alpha - parâmetro da função de produção (Cobb-Douglas)
-    beta - fator de desconto dos trabalhadores
-    C - custo de mudar de setor
-    K_X e K_Y = dotações de capital em cada setor
-    L_bar = dotação de trabalho na economia
-    p0 = preço pré-liberalização do bem X
-    """
     def __init__(self, alpha, beta, C, nu, K_X, K_Y, L_bar, p0):
-        self.alpha = alpha
-        self.beta = beta
+        """Inicializa economia
+        
+        :param alpha: parâmetro da função de produção (Cobb-Douglas)
+        :param beta: fator de desconto dos trabalhadores
+        :param C: custo de mudar de setor
+        :param K_X, K_Y: dotações de capital em cada setor
+        :param L_bar: dotação de trabalho na economia
+        :param p0: preço pré-liberalização do bem X
+        :return: objeto da classe EconomiaArtuc
+        """
+        # Checks alpha
+        if self.valid_alpha_bool(alpha):
+            self.alpha = alpha
+        else:
+            raise ValueError(f'Alpha parameter must be between zero and one, open set. Value passed was: {alpha}')
+        
+        # Checks beta
+        if self.valid_beta_bool(beta):
+            self.beta = beta
+        else:
+            raise ValueError(f'Beta parameter must be between zero and one, open set. Value passed was: {beta}')
+        
         self.C = C
         self.nu = nu
         self.K_X = K_X
@@ -32,6 +44,26 @@ class EconomiaArtuc:
         self.L_bar = L_bar
         self.p0 = p0
     
+    def valid_alpha_bool(self, alpha):
+        """Checks whether alpha is in (0, 1)
+
+        :param alpha: Cobb-Douglas parameter
+        :type alpha: float
+        :return: a flag indicating alpha is in (0, 1)
+        :rtype: bool
+        """
+        return (alpha > 0) and (alpha < 1)
+        
+    def valid_beta_bool(self, beta):
+        """Checks whether beta is in (0, 1)
+
+        :param beta: Preferences discount factor
+        :type beta: float
+        :return: a flag indicating beta is in (0, 1)
+        :rtype: bool
+        """
+        return (beta > 0) and (beta < 1)
+
     #Função Omega no paper
     def Omega(self, mu):
         """Valor da opção do trabalhador
@@ -45,7 +77,10 @@ class EconomiaArtuc:
     
     #CDF da distribuição logística (diferença dos choques)
     def G(self, mu):
-        return np.exp(mu/self.nu)/(1 + np.exp(mu/self.nu))
+        if mu == np.Inf:
+            return 1.0
+        else:
+            return np.exp(mu/self.nu)/(1 + np.exp(mu/self.nu))
     
     #Condição de primeira ordem para maximização dos lucros
     def FOC(self, L, K, p):
@@ -166,21 +201,41 @@ if __name__ == "__main__":
     import streamlit as st
     st.set_page_config(
         page_title="Artuç Simulation",
-        page_icon="",
+        page_icon=":dollar:",
         layout="wide",
         initial_sidebar_state="expanded",
     )
     
     st.title("Artuç et. al. (2008) replication")
-    # Solving the model and ploting wages                             
-    econ = EconomiaArtuc(0.5, 0.97, 1, 0.31, 1, 1, 2, 1)
-    eff_at = st.number_input("Inform the period where the tariff is actually reduced:",
+    # Solving the model and ploting wages  
+    # Uses sidebar for economy parameters
+    # alpha, beta, C, nu, K_X, K_Y, L_bar, p0
+    alpha = st.sidebar.number_input("alpha", min_value=0.01, max_value=0.99, value=0.5)
+    beta = st.sidebar.number_input('beta', min_value=0.01, max_value=0.99, value=0.97)
+    # C = st.sidebar.number_input('C', value=1)
+    nu = st.sidebar.number_input('nu', value=0.31)
+    # kx = st.sidebar.number_input('K_X', value=1)
+    # ky = st.sidebar.number_input('K_Y', value=1)
+    # lbar = st.sidebar.number_input('L_bar', value=2)
+    # p0 = st.sidebar.number_input('p0', value=1)
+        
+    econ_args = {'alpha': alpha,
+                 'beta': beta,
+                 'C': 1,
+                 'nu': nu,
+                 'K_X': 1,
+                 'K_Y': 1,
+                 'L_bar': 2,
+                 'p0': 1}                      
+    econ = EconomiaArtuc(**econ_args)
+    eff_at = st.sidebar.number_input("Period where the tariff is actually reduced:",
         value=10,
         min_value=1,
         max_value=12,
         step=1,
         format="%d")
-    sol = econ.solve_model(0.7, effective_at=int(eff_at))  
+    pw = st.sidebar.number_input('pW', value=0.7)
+    sol = econ.solve_model(pw, effective_at=int(eff_at))  
 
     fig1, ax1 = plt.subplots()          
     ax1.plot(sol['wx'], label = 'Sector X')
